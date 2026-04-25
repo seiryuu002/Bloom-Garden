@@ -685,7 +685,9 @@
     function loadFromURL() {
       const params = new URLSearchParams(location.search);
       if (params.has('g')) {
-        const g = JSON.parse(atob(params.get('g')));
+        let g;
+        try { g = safeDecode(params.get('g')); }
+        catch(e) { showToast('Could not load garden — link may be corrupted.'); return; }
         garden = g.flowers || [];
         weather = g.weather || 'sunny';
         const recipient = g.recipient || '';
@@ -693,7 +695,6 @@
         setWeather(weather, false);
         renderGarden();
         showViewCard(recipient, message);
-        // hide UI panels
         document.querySelector('.ui-panel').style.display = 'none';
       } else {
         document.getElementById('recipientField').value = '';
@@ -866,6 +867,14 @@
       }
     }
 
+    // ─── SAFE ENCODE/DECODE (handles emojis) ────────
+    function safeEncode(obj) {
+      return btoa(encodeURIComponent(JSON.stringify(obj)));
+    }
+    function safeDecode(str) {
+      return JSON.parse(decodeURIComponent(atob(str)));
+    }
+
     // ─── SHARE MODAL ─────────────────────────────────
     function openShareModal() {
       if (garden.length === 0) { showToast('Plant at least one flower first! 🌱'); return; }
@@ -873,7 +882,9 @@
       const message = document.getElementById('msgField').value.trim();
 
       const data = { flowers: garden, weather, recipient, message };
-      const encoded = btoa(JSON.stringify(data));
+      let encoded;
+      try { encoded = safeEncode(data); }
+      catch(e) { showToast('Could not generate link. Try fewer special characters.'); return; }
       const url = `${location.origin}${location.pathname}?g=${encoded}`;
 
       document.getElementById('modalFlowers').textContent = garden.join(' ');
@@ -893,12 +904,24 @@
     function copyLink() {
       const input = document.getElementById('shareLink');
       input.select();
-      navigator.clipboard.writeText(input.value).then(() => {
-        const btn = document.getElementById('copyBtn');
-        btn.textContent = '✓ Copied!';
-        btn.classList.add('copied');
-        showToast('Link copied to clipboard! 🌸');
-      });
+      const text = input.value;
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(onCopied).catch(() => fallbackCopy(input));
+      } else {
+        fallbackCopy(input);
+      }
+    }
+
+    function fallbackCopy(input) {
+      try { input.select(); document.execCommand('copy'); onCopied(); }
+      catch(e) { showToast('Please copy the link manually 👆'); }
+    }
+
+    function onCopied() {
+      const btn = document.getElementById('copyBtn');
+      btn.textContent = '✓ Copied!';
+      btn.classList.add('copied');
+      showToast('Link copied to clipboard! 🌸');
     }
 
     // ─── VIEW CARD ───────────────────────────────────
