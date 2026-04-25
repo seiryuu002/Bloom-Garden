@@ -1,0 +1,13 @@
+{
+  "name": "Bloom — Your Digital Garden",
+  "short_name": "Bloom",
+  "description": "Plant, grow, and share your own digital garden with a personal message.",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#87ceeb",
+  "theme_color": "#5a8f5a",
+  "orientation": "portrait-primary",
+  "icons": [],
+  "categories": ["lifestyle", "social"],
+  "lang": "en"
+}

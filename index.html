@@ -1,0 +1,938 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bloom — Your Digital Garden</title>
+  <meta name="description" content="Plant, grow, and share your own digital garden with a personal message." />
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#5a8f5a" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌸</text></svg>" />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Lato:wght@300;400;700&display=swap" rel="stylesheet" />
+
+  <style>
+    :root {
+      --soil: #6b4226;
+      --grass: #4a7c59;
+      --sky-sunny: linear-gradient(180deg, #87ceeb 0%, #fffde7 80%, #a8d5a2 100%);
+      --sky-rainy: linear-gradient(180deg, #607d8b 0%, #90a4ae 60%, #b0bec5 100%);
+      --sky-night: linear-gradient(180deg, #0d1b2a 0%, #1a2f4e 50%, #2d4a6e 100%);
+      --sky-foggy: linear-gradient(180deg, #cfd8dc 0%, #eceff1 70%, #b2c9b2 100%);
+      --sky-golden: linear-gradient(180deg, #ff8c00 0%, #ffd700 40%, #ffe082 70%, #a8c896 100%);
+      --current-sky: var(--sky-sunny);
+      --text-dark: #2c1810;
+      --text-light: #f5f0e8;
+      --card-bg: rgba(255,255,255,0.82);
+      --accent: #c0392b;
+      --radius: 20px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Lato', sans-serif;
+      min-height: 100vh;
+      overflow-x: hidden;
+      background: var(--current-sky);
+      transition: background 1.2s ease;
+      position: relative;
+    }
+
+    /* ── WEATHER BACKGROUNDS ── */
+    body.weather-sunny { background: var(--sky-sunny); }
+    body.weather-rainy { background: var(--sky-rainy); }
+    body.weather-night { background: var(--sky-night); }
+    body.weather-foggy { background: var(--sky-foggy); }
+    body.weather-golden { background: var(--sky-golden); }
+
+    /* ── SUN ── */
+    .sun {
+      position: fixed; top: 60px; right: 80px;
+      width: 80px; height: 80px;
+      border-radius: 50%;
+      background: radial-gradient(circle, #ffe066 30%, #ffb700 70%, transparent 100%);
+      box-shadow: 0 0 40px 20px rgba(255,200,0,0.35);
+      animation: sunPulse 4s ease-in-out infinite;
+      transition: opacity 1s;
+      z-index: 0;
+    }
+    body.weather-night .sun, body.weather-rainy .sun, body.weather-foggy .sun { opacity: 0; }
+    @keyframes sunPulse { 0%,100%{box-shadow:0 0 40px 20px rgba(255,200,0,.35)} 50%{box-shadow:0 0 60px 30px rgba(255,200,0,.5)} }
+
+    /* ── MOON ── */
+    .moon {
+      position: fixed; top: 60px; right: 100px;
+      width: 60px; height: 60px;
+      border-radius: 50%;
+      background: #f0e68c;
+      box-shadow: 0 0 30px 10px rgba(240,230,140,0.4);
+      opacity: 0;
+      transition: opacity 1s;
+      z-index: 0;
+    }
+    body.weather-night .moon { opacity: 1; }
+
+    /* ── STARS ── */
+    .stars { position: fixed; inset: 0; pointer-events: none; z-index: 0; opacity: 0; transition: opacity 1s; }
+    body.weather-night .stars { opacity: 1; }
+    .star {
+      position: absolute;
+      background: white;
+      border-radius: 50%;
+      animation: twinkle 2s ease-in-out infinite;
+    }
+    @keyframes twinkle { 0%,100%{opacity:.2} 50%{opacity:1} }
+
+    /* ── RAIN ── */
+    .rain-container { position: fixed; inset: 0; pointer-events: none; z-index: 1; opacity: 0; transition: opacity 0.8s; }
+    body.weather-rainy .rain-container { opacity: 1; }
+    .raindrop {
+      position: absolute;
+      width: 2px;
+      background: linear-gradient(to bottom, transparent, rgba(150,200,255,0.6));
+      border-radius: 2px;
+      animation: fall linear infinite;
+    }
+    @keyframes fall { to { transform: translateY(110vh); } }
+
+    /* ── FOG ── */
+    .fog {
+      position: fixed; inset: 0; pointer-events: none; z-index: 1;
+      background: rgba(200,220,220,0.3);
+      opacity: 0; transition: opacity 1s;
+    }
+    body.weather-foggy .fog { opacity: 1; }
+
+    /* ── CLOUDS ── */
+    .cloud {
+      position: fixed;
+      border-radius: 50px;
+      opacity: 0.8;
+      animation: drift linear infinite;
+      z-index: 1;
+    }
+    @keyframes drift { from { transform: translateX(-200px); } to { transform: translateX(110vw); } }
+
+    /* ── GARDEN SCENE ── */
+    .scene {
+      position: relative;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      z-index: 2;
+    }
+
+    .ground {
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      height: 140px;
+      background: linear-gradient(180deg, #4a7c59 0%, #3d6b4a 30%, #6b4226 100%);
+      border-radius: 60% 60% 0 0 / 20px 20px 0 0;
+      z-index: 2;
+    }
+    .ground::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 18px;
+      background: repeating-linear-gradient(90deg, #5a8f5a 0px, #5a8f5a 10px, #4a7c59 10px, #4a7c59 20px);
+      border-radius: 60% 60% 0 0;
+      opacity: 0.5;
+    }
+
+    /* ── PLANT AREA ── */
+    .plant-area {
+      position: fixed;
+      bottom: 80px; left: 50%;
+      transform: translateX(-50%);
+      width: min(900px, 96vw);
+      height: 260px;
+      z-index: 3;
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      gap: 18px;
+      padding: 0 20px;
+    }
+
+    /* ── FLOWER SLOT ── */
+    .flower-slot {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      cursor: pointer;
+      transition: transform 0.3s;
+    }
+    .flower-slot:hover { transform: scale(1.05) translateY(-4px); }
+    .flower-slot .stem {
+      width: 4px;
+      border-radius: 2px;
+      background: linear-gradient(to top, #4a7c59, #6ab04c);
+      position: relative;
+    }
+    .flower-slot .stem::before {
+      content: '';
+      position: absolute;
+      top: 30%;
+      left: 3px;
+      width: 18px;
+      height: 10px;
+      background: #6ab04c;
+      border-radius: 50% 50% 50% 0;
+      transform: rotate(-30deg);
+    }
+    .flower-slot .bloom {
+      font-size: 2.8rem;
+      line-height: 1;
+      filter: drop-shadow(0 4px 8px rgba(0,0,0,0.2));
+      transition: transform 0.4s cubic-bezier(0.34,1.56,0.64,1);
+      animation: sway 3s ease-in-out infinite;
+    }
+    @keyframes sway {
+      0%,100%{transform:rotate(-3deg)} 50%{transform:rotate(3deg)}
+    }
+    .flower-slot:nth-child(even) .bloom { animation-delay: -1.5s; }
+    .flower-slot .remove-btn {
+      position: absolute;
+      top: -10px;
+      right: -10px;
+      width: 22px; height: 22px;
+      background: #e74c3c;
+      border: 2px solid white;
+      border-radius: 50%;
+      color: white;
+      font-size: 12px;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer;
+      opacity: 0;
+      transition: opacity 0.2s;
+      z-index: 10;
+    }
+    .flower-slot:hover .remove-btn { opacity: 1; }
+
+    /* ── EMPTY SLOT ── */
+    .empty-slot {
+      width: 50px; height: 50px;
+      border: 2px dashed rgba(255,255,255,0.5);
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.4rem;
+      color: rgba(255,255,255,0.5);
+      cursor: pointer;
+      transition: all 0.3s;
+      margin-bottom: 5px;
+    }
+    .empty-slot:hover { border-color: white; color: white; transform: scale(1.1); }
+
+    /* ── UI PANEL ── */
+    .ui-panel {
+      position: fixed;
+      top: 20px; left: 50%;
+      transform: translateX(-50%);
+      width: min(700px, 96vw);
+      z-index: 10;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .panel-card {
+      background: var(--card-bg);
+      backdrop-filter: blur(16px);
+      border-radius: var(--radius);
+      border: 1px solid rgba(255,255,255,0.6);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+      overflow: hidden;
+    }
+
+    .panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 20px;
+      cursor: pointer;
+      user-select: none;
+    }
+    .panel-header h3 {
+      font-family: 'Playfair Display', serif;
+      font-size: 1rem;
+      color: var(--text-dark);
+      display: flex; align-items: center; gap: 8px;
+    }
+    .panel-header .chevron { font-size: 0.75rem; transition: transform 0.3s; color: #666; }
+    .panel-header.open .chevron { transform: rotate(180deg); }
+
+    .panel-body {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.4s ease;
+    }
+    .panel-body.open { max-height: 400px; }
+    .panel-inner { padding: 0 20px 16px; }
+
+    /* ── FLOWER PICKER ── */
+    .flower-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .flower-btn {
+      display: flex; flex-direction: column; align-items: center;
+      gap: 4px;
+      padding: 10px 14px;
+      border: 2px solid transparent;
+      border-radius: 14px;
+      background: rgba(255,255,255,0.6);
+      cursor: pointer;
+      transition: all 0.2s;
+      font-family: 'Lato', sans-serif;
+      font-size: 0.72rem;
+      color: var(--text-dark);
+    }
+    .flower-btn:hover { border-color: var(--grass); background: rgba(255,255,255,0.9); transform: translateY(-2px); }
+    .flower-btn .fe { font-size: 2rem; }
+    .flower-btn.selected { border-color: var(--grass); background: rgba(74,124,89,0.12); }
+
+    /* ── WEATHER PICKER ── */
+    .weather-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+    .weather-btn {
+      display: flex; align-items: center; gap: 6px;
+      padding: 8px 14px;
+      border-radius: 30px;
+      border: 2px solid rgba(0,0,0,0.1);
+      background: rgba(255,255,255,0.6);
+      cursor: pointer;
+      font-size: 0.8rem;
+      font-family: 'Lato', sans-serif;
+      color: var(--text-dark);
+      transition: all 0.2s;
+    }
+    .weather-btn:hover { background: rgba(255,255,255,0.9); transform: translateY(-1px); }
+    .weather-btn.active { border-color: #4a7c59; background: rgba(74,124,89,0.15); font-weight: 700; }
+
+    /* ── MESSAGE ── */
+    .msg-field {
+      width: 100%;
+      border: 1.5px solid rgba(0,0,0,0.1);
+      border-radius: 12px;
+      padding: 10px 14px;
+      font-family: 'Lato', sans-serif;
+      font-size: 0.9rem;
+      background: rgba(255,255,255,0.7);
+      resize: vertical;
+      min-height: 70px;
+      color: var(--text-dark);
+      transition: border-color 0.2s;
+    }
+    .msg-field:focus { outline: none; border-color: #4a7c59; }
+
+    .recipient-field {
+      width: 100%;
+      border: 1.5px solid rgba(0,0,0,0.1);
+      border-radius: 12px;
+      padding: 8px 14px;
+      font-family: 'Lato', sans-serif;
+      font-size: 0.9rem;
+      background: rgba(255,255,255,0.7);
+      color: var(--text-dark);
+      margin-bottom: 10px;
+    }
+    .recipient-field:focus { outline: none; border-color: #4a7c59; }
+
+    /* ── SHARE BUTTON ── */
+    .share-btn {
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      width: 100%;
+      padding: 14px;
+      border-radius: 14px;
+      background: linear-gradient(135deg, #4a7c59, #2d5a3d);
+      color: white;
+      border: none;
+      font-family: 'Playfair Display', serif;
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.3s;
+      letter-spacing: 0.5px;
+      box-shadow: 0 4px 16px rgba(74,124,89,0.3);
+    }
+    .share-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(74,124,89,0.4); }
+    .share-btn:active { transform: translateY(0); }
+
+    /* ── BRAND ── */
+    .brand {
+      text-align: center;
+      padding: 10px 20px 14px;
+    }
+    .brand h1 {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.5rem;
+      color: var(--text-dark);
+      letter-spacing: 1px;
+    }
+    .brand p { font-size: 0.8rem; color: #666; margin-top: 2px; }
+
+    /* ── GARDEN COUNT ── */
+    .garden-status {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 20px 10px;
+      font-size: 0.78rem;
+      color: #666;
+    }
+    .clear-btn {
+      background: none; border: 1px solid #ddd;
+      padding: 3px 10px; border-radius: 20px;
+      cursor: pointer; font-size: 0.72rem; color: #888;
+      transition: all 0.2s;
+    }
+    .clear-btn:hover { border-color: #c0392b; color: #c0392b; }
+
+    /* ── SHARE MODAL ── */
+    .modal-overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.45);
+      backdrop-filter: blur(6px);
+      z-index: 100;
+      display: flex; align-items: center; justify-content: center;
+      opacity: 0; pointer-events: none;
+      transition: opacity 0.3s;
+    }
+    .modal-overlay.visible { opacity: 1; pointer-events: all; }
+
+    .modal {
+      background: white;
+      border-radius: 24px;
+      padding: 32px;
+      max-width: 460px;
+      width: 90%;
+      box-shadow: 0 24px 64px rgba(0,0,0,0.2);
+      transform: scale(0.92);
+      transition: transform 0.3s;
+      text-align: center;
+    }
+    .modal-overlay.visible .modal { transform: scale(1); }
+
+    .modal h2 {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.6rem;
+      color: var(--text-dark);
+      margin-bottom: 6px;
+    }
+    .modal .garden-preview {
+      font-size: 3rem;
+      margin: 16px 0 8px;
+      letter-spacing: 4px;
+    }
+    .modal .message-preview {
+      font-style: italic;
+      color: #555;
+      font-size: 0.95rem;
+      margin: 10px 0 16px;
+      padding: 12px;
+      background: #f9f5f0;
+      border-radius: 12px;
+      line-height: 1.5;
+    }
+    .modal .recipient-preview {
+      font-size: 0.85rem;
+      color: #888;
+      margin-bottom: 20px;
+    }
+    .link-box {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    .link-input {
+      flex: 1;
+      border: 1.5px solid #e0e0e0;
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-size: 0.78rem;
+      color: #555;
+      background: #f5f5f5;
+    }
+    .copy-btn {
+      padding: 10px 18px;
+      border-radius: 10px;
+      background: #4a7c59;
+      color: white;
+      border: none;
+      cursor: pointer;
+      font-size: 0.85rem;
+      font-weight: 700;
+      transition: background 0.2s;
+    }
+    .copy-btn:hover { background: #3d6b4a; }
+    .copy-btn.copied { background: #27ae60; }
+
+    .modal-close {
+      width: 100%;
+      padding: 12px;
+      border-radius: 12px;
+      border: 1.5px solid #e0e0e0;
+      background: white;
+      color: #666;
+      cursor: pointer;
+      font-size: 0.9rem;
+      margin-top: 6px;
+      transition: all 0.2s;
+    }
+    .modal-close:hover { background: #f5f5f5; }
+
+    /* ── VIEW MODE (shared garden) ── */
+    .view-card {
+      position: fixed;
+      bottom: 170px; left: 50%;
+      transform: translateX(-50%);
+      background: rgba(255,255,255,0.88);
+      backdrop-filter: blur(16px);
+      border-radius: 20px;
+      border: 1px solid rgba(255,255,255,0.7);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+      padding: 20px 28px;
+      max-width: 380px;
+      width: 90%;
+      text-align: center;
+      z-index: 10;
+      animation: floatIn 0.8s ease forwards;
+    }
+    @keyframes floatIn { from{opacity:0;transform:translateX(-50%) translateY(20px)} to{opacity:1;transform:translateX(-50%) translateY(0)} }
+    .view-card .from { font-size: 0.78rem; color: #888; margin-bottom: 6px; }
+    .view-card .to { font-family: 'Playfair Display', serif; font-size: 1.1rem; color: #2c1810; margin-bottom: 10px; }
+    .view-card .vm { font-style: italic; color: #555; font-size: 0.92rem; line-height: 1.5; }
+    .view-card .make-yours {
+      margin-top: 14px;
+      padding: 8px 18px;
+      border-radius: 20px;
+      background: #4a7c59;
+      color: white;
+      border: none;
+      cursor: pointer;
+      font-size: 0.8rem;
+      font-weight: 700;
+      transition: all 0.2s;
+    }
+
+    /* ── TOAST ── */
+    .toast {
+      position: fixed;
+      bottom: 30px;
+      left: 50%;
+      transform: translateX(-50%) translateY(80px);
+      background: #2c1810;
+      color: white;
+      padding: 12px 24px;
+      border-radius: 30px;
+      font-size: 0.85rem;
+      z-index: 200;
+      transition: transform 0.4s cubic-bezier(0.34,1.56,0.64,1);
+    }
+    .toast.show { transform: translateX(-50%) translateY(0); }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 600px) {
+      .ui-panel { top: 10px; }
+      .flower-slot .bloom { font-size: 2rem; }
+      .brand h1 { font-size: 1.2rem; }
+    }
+  </style>
+</head>
+<body class="weather-sunny">
+
+  <!-- Atmosphere layers -->
+  <div class="sun"></div>
+  <div class="moon"></div>
+  <div class="stars" id="stars"></div>
+  <div class="rain-container" id="rain"></div>
+  <div class="fog"></div>
+  <div id="clouds"></div>
+
+  <!-- Ground -->
+  <div class="ground"></div>
+
+  <!-- Flowers in garden -->
+  <div class="plant-area" id="plantArea"></div>
+
+  <!-- UI Panel -->
+  <div class="ui-panel">
+
+    <!-- Brand -->
+    <div class="panel-card">
+      <div class="brand">
+        <h1>🌸 Bloom</h1>
+        <p>Grow a garden. Send a feeling.</p>
+      </div>
+
+      <!-- Garden status -->
+      <div class="garden-status">
+        <span id="gardenCount">Your garden is empty — start planting!</span>
+        <button class="clear-btn" onclick="clearGarden()">Clear all</button>
+      </div>
+    </div>
+
+    <!-- Flower Picker -->
+    <div class="panel-card">
+      <div class="panel-header" onclick="togglePanel('flowers')">
+        <h3>🌼 Choose Flowers</h3>
+        <span class="chevron">▼</span>
+      </div>
+      <div class="panel-body" id="flowers-body">
+        <div class="panel-inner">
+          <div class="flower-grid" id="flowerGrid"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Weather Picker -->
+    <div class="panel-card">
+      <div class="panel-header" onclick="togglePanel('weather')">
+        <h3>🌤️ Set the Weather</h3>
+        <span class="chevron">▼</span>
+      </div>
+      <div class="panel-body" id="weather-body">
+        <div class="panel-inner">
+          <div class="weather-grid" id="weatherGrid"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Message Composer -->
+    <div class="panel-card">
+      <div class="panel-header" onclick="togglePanel('message')">
+        <h3>✍️ Write a Message</h3>
+        <span class="chevron">▼</span>
+      </div>
+      <div class="panel-body" id="message-body">
+        <div class="panel-inner">
+          <input class="recipient-field" id="recipientField" type="text" placeholder="To: (e.g. Grandma, My bestie...)" />
+          <textarea class="msg-field" id="msgField" placeholder="Write something from the heart... 🌸"></textarea>
+        </div>
+      </div>
+    </div>
+
+    <!-- Share -->
+    <button class="share-btn" onclick="openShareModal()">
+      🌿 Share My Garden
+    </button>
+  </div>
+
+  <!-- Share Modal -->
+  <div class="modal-overlay" id="modal">
+    <div class="modal">
+      <h2>Your Garden is Ready! 🌸</h2>
+      <div class="garden-preview" id="modalFlowers"></div>
+      <div class="recipient-preview" id="modalTo"></div>
+      <div class="message-preview" id="modalMsg"></div>
+      <div class="link-box">
+        <input class="link-input" id="shareLink" readonly />
+        <button class="copy-btn" id="copyBtn" onclick="copyLink()">Copy</button>
+      </div>
+      <button class="modal-close" onclick="closeModal()">Close</button>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast" id="toast"></div>
+
+  <script>
+    // ─── DATA ───────────────────────────────────────
+    const FLOWERS = [
+      { emoji: '🌸', name: 'Cherry Blossom', height: 200 },
+      { emoji: '🌹', name: 'Rose',           height: 220 },
+      { emoji: '🌻', name: 'Sunflower',      height: 240 },
+      { emoji: '🌷', name: 'Tulip',          height: 180 },
+      { emoji: '💐', name: 'Bouquet',        height: 170 },
+      { emoji: '🌼', name: 'Daisy',          height: 160 },
+      { emoji: '🪷', name: 'Lotus',          height: 155 },
+      { emoji: '🌺', name: 'Hibiscus',       height: 190 },
+      { emoji: '🌿', name: 'Fern',           height: 140 },
+      { emoji: '🍀', name: 'Clover',         height: 120 },
+    ];
+
+    const WEATHERS = [
+      { id: 'sunny',  emoji: '☀️',  label: 'Sunny'       },
+      { id: 'golden', emoji: '🌅',  label: 'Golden Hour' },
+      { id: 'rainy',  emoji: '🌧️',  label: 'Rainy'       },
+      { id: 'foggy',  emoji: '🌫️',  label: 'Foggy'       },
+      { id: 'night',  emoji: '🌙',  label: 'Night'       },
+    ];
+
+    const MAX_FLOWERS = 12;
+
+    // ─── STATE ──────────────────────────────────────
+    let garden = [];   // array of flower emoji strings
+    let weather = 'sunny';
+    let selectedFlower = FLOWERS[0];
+
+    // ─── INIT ───────────────────────────────────────
+    function init() {
+      buildStars();
+      buildRain();
+      buildClouds();
+      buildFlowerGrid();
+      buildWeatherGrid();
+      loadFromURL();
+      renderGarden();
+      // Open first panel by default
+      togglePanel('flowers');
+    }
+
+    // ─── PARSE URL (view mode) ───────────────────────
+    function loadFromURL() {
+      const params = new URLSearchParams(location.search);
+      if (params.has('g')) {
+        const g = JSON.parse(atob(params.get('g')));
+        garden = g.flowers || [];
+        weather = g.weather || 'sunny';
+        const recipient = g.recipient || '';
+        const message = g.message || '';
+        setWeather(weather, false);
+        renderGarden();
+        showViewCard(recipient, message);
+        // hide UI panels
+        document.querySelector('.ui-panel').style.display = 'none';
+      } else {
+        document.getElementById('recipientField').value = '';
+        document.getElementById('msgField').value = '';
+      }
+    }
+
+    // ─── STARS ──────────────────────────────────────
+    function buildStars() {
+      const c = document.getElementById('stars');
+      for (let i = 0; i < 120; i++) {
+        const s = document.createElement('div');
+        s.className = 'star';
+        const sz = Math.random() * 3 + 1;
+        s.style.cssText = `width:${sz}px;height:${sz}px;top:${Math.random()*80}%;left:${Math.random()*100}%;animation-delay:${Math.random()*3}s;animation-duration:${1.5+Math.random()*2}s`;
+        c.appendChild(s);
+      }
+    }
+
+    // ─── RAIN ───────────────────────────────────────
+    function buildRain() {
+      const c = document.getElementById('rain');
+      for (let i = 0; i < 80; i++) {
+        const d = document.createElement('div');
+        d.className = 'raindrop';
+        const h = 15 + Math.random() * 25;
+        d.style.cssText = `left:${Math.random()*100}%;top:${-Math.random()*40}%;height:${h}px;opacity:${0.4+Math.random()*0.4};animation-duration:${0.6+Math.random()*0.6}s;animation-delay:${Math.random()*1}s`;
+        c.appendChild(d);
+      }
+    }
+
+    // ─── CLOUDS ─────────────────────────────────────
+    function buildClouds() {
+      const c = document.getElementById('clouds');
+      const configs = [
+        { w:160, h:60, top:12, dur:28, delay:0, opacity:0.75 },
+        { w:220, h:80, top:18, dur:42, delay:-15, opacity:0.6 },
+        { w:120, h:50, top:8,  dur:35, delay:-8, opacity:0.5 },
+        { w:180, h:70, top:22, dur:50, delay:-25, opacity:0.55 },
+      ];
+      configs.forEach(cfg => {
+        const cl = document.createElement('div');
+        cl.className = 'cloud';
+        cl.style.cssText = `width:${cfg.w}px;height:${cfg.h}px;top:${cfg.top}%;background:rgba(255,255,255,${cfg.opacity});animation-duration:${cfg.dur}s;animation-delay:${cfg.delay}s;filter:blur(2px)`;
+        c.appendChild(cl);
+      });
+    }
+
+    // ─── FLOWER GRID ─────────────────────────────────
+    function buildFlowerGrid() {
+      const g = document.getElementById('flowerGrid');
+      FLOWERS.forEach(f => {
+        const btn = document.createElement('button');
+        btn.className = 'flower-btn' + (f === selectedFlower ? ' selected' : '');
+        btn.innerHTML = `<span class="fe">${f.emoji}</span>${f.name}`;
+        btn.onclick = () => {
+          selectedFlower = f;
+          document.querySelectorAll('.flower-btn').forEach(b => b.classList.remove('selected'));
+          btn.classList.add('selected');
+          addFlower();
+        };
+        g.appendChild(btn);
+      });
+    }
+
+    // ─── WEATHER GRID ────────────────────────────────
+    function buildWeatherGrid() {
+      const g = document.getElementById('weatherGrid');
+      WEATHERS.forEach(w => {
+        const btn = document.createElement('button');
+        btn.className = 'weather-btn' + (w.id === weather ? ' active' : '');
+        btn.id = 'wb-' + w.id;
+        btn.innerHTML = `${w.emoji} ${w.label}`;
+        btn.onclick = () => setWeather(w.id);
+        g.appendChild(btn);
+      });
+    }
+
+    // ─── SET WEATHER ─────────────────────────────────
+    function setWeather(id, updateBtn = true) {
+      weather = id;
+      document.body.className = 'weather-' + id;
+      if (updateBtn) {
+        document.querySelectorAll('.weather-btn').forEach(b => b.classList.remove('active'));
+        const wb = document.getElementById('wb-' + id);
+        if (wb) wb.classList.add('active');
+      }
+    }
+
+    // ─── ADD FLOWER ──────────────────────────────────
+    function addFlower() {
+      if (garden.length >= MAX_FLOWERS) { showToast('Garden is full! (max 12 flowers)'); return; }
+      garden.push(selectedFlower.emoji);
+      renderGarden();
+    }
+
+    // ─── REMOVE FLOWER ───────────────────────────────
+    function removeFlower(index) {
+      garden.splice(index, 1);
+      renderGarden();
+    }
+
+    // ─── CLEAR ───────────────────────────────────────
+    function clearGarden() {
+      garden = [];
+      renderGarden();
+    }
+
+    // ─── RENDER GARDEN ───────────────────────────────
+    function renderGarden() {
+      const area = document.getElementById('plantArea');
+      area.innerHTML = '';
+
+      const count = document.getElementById('gardenCount');
+      if (garden.length === 0) {
+        count.textContent = 'Your garden is empty — start planting!';
+        // Show empty slots
+        for (let i = 0; i < 5; i++) {
+          const slot = document.createElement('div');
+          slot.className = 'empty-slot';
+          slot.textContent = '+';
+          slot.title = 'Pick a flower above';
+          slot.onclick = () => { togglePanel('flowers'); };
+          area.appendChild(slot);
+        }
+        return;
+      }
+
+      count.textContent = `🌱 ${garden.length} flower${garden.length > 1 ? 's' : ''} growing`;
+
+      garden.forEach((emoji, idx) => {
+        const flower = FLOWERS.find(f => f.emoji === emoji) || FLOWERS[0];
+        const stemH = Math.round(flower.height * (0.85 + Math.random() * 0.3));
+
+        const slot = document.createElement('div');
+        slot.className = 'flower-slot';
+
+        const removeBtn = document.createElement('div');
+        removeBtn.className = 'remove-btn';
+        removeBtn.textContent = '×';
+        removeBtn.onclick = (e) => { e.stopPropagation(); removeFlower(idx); };
+
+        const bloom = document.createElement('div');
+        bloom.className = 'bloom';
+        bloom.textContent = emoji;
+        bloom.style.animationDelay = `${Math.random() * -3}s`;
+
+        const stem = document.createElement('div');
+        stem.className = 'stem';
+        stem.style.height = stemH + 'px';
+
+        slot.appendChild(removeBtn);
+        slot.appendChild(bloom);
+        slot.appendChild(stem);
+        area.appendChild(slot);
+      });
+    }
+
+    // ─── PANELS ──────────────────────────────────────
+    function togglePanel(id) {
+      const body = document.getElementById(id + '-body');
+      const header = body.previousElementSibling;
+      const isOpen = body.classList.contains('open');
+      // close all
+      document.querySelectorAll('.panel-body').forEach(b => b.classList.remove('open'));
+      document.querySelectorAll('.panel-header').forEach(h => h.classList.remove('open'));
+      if (!isOpen) {
+        body.classList.add('open');
+        header.classList.add('open');
+      }
+    }
+
+    // ─── SHARE MODAL ─────────────────────────────────
+    function openShareModal() {
+      if (garden.length === 0) { showToast('Plant at least one flower first! 🌱'); return; }
+      const recipient = document.getElementById('recipientField').value.trim();
+      const message = document.getElementById('msgField').value.trim();
+
+      const data = { flowers: garden, weather, recipient, message };
+      const encoded = btoa(JSON.stringify(data));
+      const url = `${location.origin}${location.pathname}?g=${encoded}`;
+
+      document.getElementById('modalFlowers').textContent = garden.join(' ');
+      document.getElementById('modalTo').textContent = recipient ? `To: ${recipient}` : '';
+      document.getElementById('modalMsg').textContent = message || '(No message — the flowers speak for themselves!)';
+      document.getElementById('shareLink').value = url;
+      document.getElementById('copyBtn').textContent = 'Copy';
+      document.getElementById('copyBtn').classList.remove('copied');
+
+      document.getElementById('modal').classList.add('visible');
+    }
+
+    function closeModal() {
+      document.getElementById('modal').classList.remove('visible');
+    }
+
+    function copyLink() {
+      const input = document.getElementById('shareLink');
+      input.select();
+      navigator.clipboard.writeText(input.value).then(() => {
+        const btn = document.getElementById('copyBtn');
+        btn.textContent = '✓ Copied!';
+        btn.classList.add('copied');
+        showToast('Link copied to clipboard! 🌸');
+      });
+    }
+
+    // ─── VIEW CARD ───────────────────────────────────
+    function showViewCard(recipient, message) {
+      const card = document.createElement('div');
+      card.className = 'view-card';
+      card.innerHTML = `
+        <div class="from">🌸 Someone grew this garden for you</div>
+        ${recipient ? `<div class="to">For ${recipient}</div>` : ''}
+        ${message ? `<div class="vm">"${message}"</div>` : ''}
+        <button class="make-yours" onclick="location.href=location.pathname">🌱 Grow your own garden</button>
+      `;
+      document.body.appendChild(card);
+    }
+
+    // ─── TOAST ───────────────────────────────────────
+    function showToast(msg) {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.classList.add('show');
+      setTimeout(() => t.classList.remove('show'), 2800);
+    }
+
+    // ─── CLOSE MODAL ON OVERLAY CLICK ───────────────
+    document.getElementById('modal').addEventListener('click', function(e) {
+      if (e.target === this) closeModal();
+    });
+
+    init();
+
+    // ─── SERVICE WORKER ───────────────────────────────
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('./sw.js').catch(() => {});
+    }
+  </script>
+</body>
+</html>
